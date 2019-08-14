@@ -1,0 +1,364 @@
+% HOWTO: Set Up a New Index
+% 03 August 2016
+
+# Preliminaries #
+
+This document can be used as a guide to create a new index and evaluate it. It
+covers example usages of the python scripts `indices.py, extractor.py
+elastify.py, querify.py, cutset.py`.
+Most notably, it is not necessary to re-index the full-text, when trying out
+a new strategy for title data, which makes the indexing process running time
+differ between a few minutes and
+several hours.
+
+* All relative paths are given with respect to the package's base directory
+  `moving/Code/elastify`.
+
+* This package is installed either by running `python3 setup.py develop`. On 
+  the server, you need to enable the virtual environment `source 
+  EVE/bin/activate` before.
+
+* The data is assumed to be in the format `<docID>.{json,txt}` in some
+  directories, where the document IDs should correspond to each other. In case,
+  you have trouble bringing the data into the correct format, you might be
+  interested in the `cutset` script.
+
+If the intersection of the two directories equals it's union, everything should
+be fine. An example call to `cutset` should produce the following output:
+
+~~~
+(EVE) $ cutset data/metadata/%.json data/EconBizEnglish/%.txt
+Decomposed pathspecs into: ('data/metadata', '.json')('data/EconBizEnglish', '.txt')
+Collecting elements...
+data/metadata: 288344
+data/EconBizEnglish: 288344
+Collected a total of 288344 elements in 2 sets.
+Intersecting...
+Cutset retained 288344 elements. [100.00% with respect to their union]
+Finished after 0 hours, 0 minutes and 54 seconds.
+~~~
+
+The script may also be used to actually create this intersection.
+
+
+
+# Creating the index's settings and mapping#
+
+The first step to create a new index is to create its respective settings and
+a mapping. The mapping specifies how a certain property is analyzed and scored.
+The analyzing process at both, query and index time, while the scoring is only
+consulted at query time.
+
+Feel free to use any of the following as template,
+by copying them and modifying them as desired:
+
+* `index_settings/economics.yaml`
+* `index_settings/economics-titles-experimental.yaml`
+
+The intended location for index settings is `./index_settings`.
+
+The index's settings is a `yaml` file structured as follows:
+
+~~~{.yaml}
+settings:
+  index:
+    # basic index settings
+  analysis:
+    filter:
+      # token filter settings
+
+    analyzer:
+      # analyzer settings
+mappings:
+  # mapping definition
+~~~
+
+In the following sections, we will go through the respective contents for the 
+fields: [mappings](#mapping), [analysis](#analysis), [analyzer](#analyzer), and 
+[filter](#token-filter).
+
+## Mapping ## {#mapping}
+
+Under `mappings` you can see the document type (`publication`) which you can
+and should provide with properties such as `title`.
+The `title` property may contain multiple fields, which
+allows to analyze the raw string in multiple ways, and to consider different
+similarities. It is recommended to use the same field names (CFIDF, TFIDF,
+...), so that the evaluation script `querify.py` does not have to be modified.
+
+Example:
+
+```yaml
+mappings:
+    publication:
+        properties:
+            title:
+                type: string
+                analyzer: default
+                fields:
+                    TFIDF:
+                        type: string
+                        analyzer: TermAnalyzer
+                        similarity: default
+                    CFIDF:
+                        type: string
+                        analyzer: ConceptAnalyzer
+                        similarity: default # TFIDF
+
+```
+
+
+## Analysis ## {#analysis}
+
+Under `analysis`, the analyzers and token filters are specified, which are then 
+used in the mapping.
+In case you want to use a non-default analyzer, you have to specify it under 
+`analyzer`.
+In case this non-default analyzer uses non-default token filters, you have to 
+specify them under `filter`.
+
+### Analyzer ### {#analyzer}
+
+
+Under `analysis` the analyzers may be composed out of the token filters given
+in [Elasticsearch's documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-tokenfilters.html)
+
+As an example have a look at our ConceptAnalyzer, which we already used in the 
+mapping above.
+
+```{.yaml}
+analyzer:
+        TermAnalyzer:
+        type: custom
+        tokenizer : standard
+        filter: [english_possessive_stemmer,
+                lowercase,
+                english_stop,
+                # english_keywords,
+                english_kstem]
+
+        ConceptAnalyzer:
+        type: custom
+        tokenizer: standard
+        filter: [english_possessive_stemmer,
+                lowercase,
+                english_stop,
+                english_kstem,
+                glue_together,
+                alt_labels, # resolve altlabel synsets
+                pref_labels] # keep only preflabels
+```
+
+Once again, some of the token filters given here are used along with 
+non-default values, and therefore have to be specified under `filters` as we 
+will see in the next section.
+
+### Token Filter ### {#token-filter}
+
+Under the `filter` field of `analysis`, you may specify token filters with 
+customized options for later use.
+As an example, we take a look at the `alt_labels` and `pref_labels` token 
+filters, which are designed as synonym and keep words token filters:
+
+```{.yaml}
+alt_labels:
+    type: synonym
+    expand: false
+    synonyms_path: analysis/altLabels.txt # relative to config dir
+
+pref_labels:
+    type: keep
+    keep_words_path: analysis/prefLabels.txt # relative to config dir
+```
+
+These two token filters make use of external `.txt` files which hold the
+synonyms or the keep words respectively, in the following, we create these
+`.txt` files with the help of the `extractor`. This step is only necessary,
+when you want to index a new data set or you want to apply a different
+stemming.
+
+
+
+# Optional: Creating (stemmed) altLabel and prefLabel files #
+
+In case you want to create an index for a whole new data set, or you want to
+try out a different stemming variant then kstem (`light_english` stemmer in
+elasticsearch), it is necessary to preprocess the thesaurus label's with the
+same stemmer.
+
+As described in the last section, some token filters such as keep
+words and synonyms require additional auxiliary files. Luckily, the
+`extractor.py` script is designed to exactly perform this task for you. It
+takes a thesaurus as input and creates the auxiliary files, optionally (and
+preferably) using the exact same stemmer as you intent to use in your mapping.
+
+The extractor uses the file `elastify/thes_prep.yaml` to set up a temporary
+index and pass the pref and alt labels to this analyzer. In case you want to
+use a different stemmer than english kstem you may add it in this file:
+
+```{.yaml}
+ThesaurusPreprocessor:
+    # same as ConceptAnalyzer up to glueing
+    type: custom
+    tokenizer: standard
+    filter: [english_possessive_stemmer,
+        lowercase,
+        english_stop,
+        english_kstem]
+```
+
+Again, this should be equal to the analyzer of your mapping up to the stemming
+part, so that concepts can be properly extracted. Finally, here is the magic
+command which creates the new synset and keepwords files:
+
+```{.bash}
+extractor -a ThesaurusPreprocessor -s altlabels-new.txt -p preflabels-new.txt
+```
+
+As a bonus, you can also pass the `-l` switch in order to print out the length 
+of the longest found alt or pref label (might be useful for shingle token
+filter). Finally, the newly created files should be copied to the appropriate
+location, which we specified in the definition of the respective token filters.
+In case you are working on kdsrv02, you may use the `kdsrv02-installer.sh`
+script in `recources_tmp`, which executes:
+
+```{.bash
+cp -iv "$@" '/data3/lgalke/elasticsearch-2.3.3/config/analysis/'
+```
+
+*Please make sure not to overwrite any existing files.*
+
+# Creating and populating the index #
+
+Finally, we come to the point, at which we can create and populate the new
+index. Assume the new index is called `exindex` along with its settings file
+`index_settings/exindex.yaml` and the title data is located under
+`data/metadata`
+
+*Note that you do not have to index full-text if the baseline is already existing.*
+
+## Only Title Data ##
+
+The following invocation of `elastify` indexes a bunch of title data into your 
+newly created index.
+
+1. Create the index:
+
+```{.bash}
+indices create exindex index_settings/exindex.yaml
+```
+
+2. Populate the index:
+
+```{.bash}
+elastify -i exindex -d publication -e title -vj6 data/metadata
+```
+
+3. Assert that everything went well: `indices list`
+
+## Also fulltext data ##
+
+In case you also want to index the full-text data (may take a long time),
+you need to make sure that the file names (i.e. document ids) correspond to 
+each other. In this example, the full-text is stored as `.txt` while the titles 
+are stored inside some fields of `.json` files.
+
+1. Create the index:
+
+```{.bash}
+  indices create exindex index_settings/exindex.yaml
+```
+
+2. Populate the index with full-text data:
+
+```{.bash}
+  elastify -i exindex -d publication -f fulltext -vj4 data/fulltext
+```
+
+3. Update the fields with title data (Note the `-u` switch to not replace your 
+   data)
+
+```{.bash}
+  elastify -u -i exindex -d publication -e title -vj6 data/metadata
+```
+
+4. Assert that everything went well: `indices list`
+
+
+## More Details on Elastify ##
+
+The `elastify` script assumes that your data is located in a directory in the 
+format `<document_id>.json` or `<document_id>.txt`.
+
+* Make sure that the `-i` and `-d` arguments correspond to the name of your new 
+  index and the document type for which you set up the mapping.
+* For `txt` files, the whole text is indexed as a single property, which can be 
+  controlled by the argument `-f` (defaults to `fulltext`)
+* For `json` files, either all property values are indexed, or only specific 
+  ones, controllable with the `-e` argument. In the above example we extract 
+  the `title` field, since we do not care for all the other meta-data fields.
+* Last but not least, the `-j` switch controls the number of threads to use, 
+  when passing the data to elasticsearch. Make sure not to use all available 
+  cores, since the majority of cores should be available for actually 
+  processing the data.
+
+
+# Evaluation with `querify` #
+
+In order to perform evaluation on the newly created index, we consult the 
+`querify` script. It takes some file as input and uses each line as a single 
+query for evaluation. An example call looks like this:
+
+```{.bash}
+querify resources_tmp/queries.txt -I economics -D publication -g tfidf -G 100
+  -i exindex -d publication -s CFIDF CTFIDF
+  -m ndcg -k 20
+```
+
+The arguments `-I, -D, -g -G` are used to set up the gold standard, their 
+default values are actually the ones shown above.
+
+The lower case `-i, -d, -s` are used to specify the strategy to use. Here the
+values of `-s` is the name of the strategy which basically your new strategy's
+identifier to a *set of fields* as in [Mapping](#mapping).
+
+You may need to insert your new strategy at the global `FIELDS` variable in
+`elastify/utils.py` similar to the following:
+
+```{.python}
+FIELDS = {"tfidf": ["TFIDF"],
+          "bm25": ["BM25"],
+          "bm25c": ["BM25C"],
+          "cfidf": ["CFIDF"],
+          "ctfidf": ["TFIDF", "CFIDF"],
+          "bm25ct": ["BM25", "BM25C"],
+          "cxtfidf": ["TFIDF", "CXFIDF"],
+          "bm25cxt": ["BM25", "BM25CX"],
+          "ctfidf-nostem": ["TFIDF_nostem", "CFIDF_nostem"],
+          "ctfidf-porter": ["TFIDF_porter", "CFIDF_porter"]
+          }
+```
+
+The values are concatenated with the name of the property and joined into a
+[Multi Match
+Query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-multi-match-query.html).
+This allows to use both, `CFIDF` and `TFIDF` field in order to invoke the
+behavior of CTFIDF. Note that you may leave this step out, when your new field
+names are equivalent to the ones contained in the dictionary above.
+
+The arguments `-m, -k` are used to specify the evaluation metric(s) and the 
+`@k` value. Currently supported metrics are `ndcg, precision, map`.
+
+While all the arguments might look a bit confusing at first, seperating the 
+gold standard's index from the strategy's index results in not reindexing 
+full-text all the time. Furthermore, they have reasonable default values, so
+that for `economics` the command above may be narrowed down to 
+
+```{.bash}
+querify resources_tmp/queries.txt -i exindex -s CFIDF CTFIDF -m ndcg
+```
+
+# Any Questions? #
+
+If anything did not work as expected, you can always try to have a look at the
+help texts by invoking any script with `-h`, or else, just contact me.

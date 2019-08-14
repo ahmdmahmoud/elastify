@@ -1,0 +1,81 @@
+// Vim rest console for elasticsearch
+# Global default
+http://localhost:9200
+--
+
+# View nodes' status
+--
+GET /_cat/nodes?v
+
+# View detailed node's stats
+--
+GET /_nodes/stats/process?pretty
+
+# View indices
+--
+GET /_cat/indices?v
+
+
+# View settings
+--
+GET /economics/_settings?pretty
+
+# View mapping.
+--
+GET /economics/_mapping/publication
+
+# View mapping. Experimental
+--
+GET /bm25titles/_mapping/publication
+
+# View settings. Experimental
+--
+GET /experimental/_settings?pretty
+
+# Refresh economics 
+--
+POST /economics/_refresh
+
+# Search economics in fulltexts
+--
+GET /economics/publication/_search?pretty
+{
+        "query": {
+                "multi_match": {
+                        "fields": ["fulltext"],
+                        "query": "economics",
+                        "type": "most_fields"
+                }
+        }
+}
+
+# Search economics in titles with concepts
+--
+GET /economics/publication/_search?pretty
+{
+        "_source": false,
+        "query": {
+                "multi_match": {
+                        "fields": ["title.TFIDF", "title.CFIDF"],
+                        "query": "disarmament",
+                        "type": "most_fields"
+                }
+        }
+}
+# Get Termvectors for a specific document
+# Great for inspecting something
+--
+GET /economics/publication/10008504579/_termvectors?fields=fulltext
+
+
+# Create 'economics' index
+--
+PUT /asdf
+@index_settings/hctfidf.json
+
+# Set an max result window to 2^19 - 1
+--
+PUT /economics/_settings
+{
+            "index" : {"max_result_window": 524287}
+}

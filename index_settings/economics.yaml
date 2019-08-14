@@ -1,0 +1,103 @@
+settings:
+    index:
+        number_of_shards : 1
+        number_of_replicas : 0
+    analysis:
+        filter:
+            english_stop:
+                type: stop
+                stopwords: _english_
+            english_possessive_stemmer:
+                type: stemmer
+                language: possessive_english
+            english_kstem:
+                type: stemmer
+                language: light_english # kstem
+            glue_together:
+                type: shingle
+                min_shingle_size: 2
+                max_shingle_size: 6 # word1, word2 => "word1 word2"
+                output_unigrams: true
+            alt_labels:
+                type: synonym # ES
+                expand: false
+                synonyms_path: analysis/altLabels.txt # relative to config dir
+            pref_labels:
+                type: keep
+                keep_words_path: analysis/prefLabels.txt # relative to config dir
+
+        analyzer:
+            TermAnalyzer:
+                type: custom
+                tokenizer : standard
+                filter: [english_possessive_stemmer,
+                    lowercase,
+                    english_stop,
+                    # english_keywords,
+                    english_kstem]
+
+            ConceptAnalyzer:
+                type: custom
+                tokenizer: standard
+                filter: [english_possessive_stemmer,
+                    lowercase,
+                    english_stop,
+                    english_kstem,
+                    glue_together,
+                    alt_labels, # resolve altlabel synsets
+                    pref_labels] # keep only preflabels
+
+            ThesaurusPreprocessor:
+                # same as ConceptAnalyzer up to glueing
+                type: custom
+                tokenizer: standard
+                filter: [english_possessive_stemmer,
+                    lowercase,
+                    english_stop,
+                    english_kstem]
+
+
+mappings:
+    publication: # doc type
+        properties:
+            fulltext:
+                type: string
+                analyzer: default
+                fields: # one property may be indexed in multiple ways
+                    TFIDF:
+                        type: string
+                        analyzer: TermAnalyzer
+                        similarity: default # TFIDF
+                    BM25:
+                        type: string
+                        analyzer: TermAnalyzer
+                        similarity: BM25
+                    CFIDF:
+                        type: string
+                        analyzer: ConceptAnalyzer
+                        similarity: default # TFIDF
+                    BM25C:
+                        type: string
+                        analyzer: ConceptAnalyzer
+                        similarity: BM25
+
+            title:
+                type: string
+                analyzer: default
+                fields:
+                    TFIDF:
+                        type: string
+                        analyzer: TermAnalyzer
+                        similarity: default # TFIDF
+                    BM25:
+                        type: string
+                        analyzer: TermAnalyzer
+                        similarity: BM25
+                    CFIDF:
+                        type: string
+                        analyzer: ConceptAnalyzer
+                        similarity: default # TFIDF
+                    BM25C:
+                        type: string
+                        analyzer: ConceptAnalyzer
+                        similarity: BM25

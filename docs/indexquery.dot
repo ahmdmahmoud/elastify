@@ -1,0 +1,27 @@
+//
+// indexquery.dot
+//
+// Created on 08-07-2016 by lpag
+//
+digraph indexquery {
+    Input [shape=diamond];
+    Output [shape=diamond];
+    Input -> Query;
+    Scored -> Output;
+    Storage[label="ES Storage", shape=box];
+    subgraph clusterIndextime {
+        label="Index Time";
+        Analyzer [label="Analyzer", fillcolor=green,shape=doublecircle];
+        Documents -> Analyzer;
+    }
+    Analyzer -> Storage;
+    subgraph clusterQueryTime {
+        Retrieved [label="Retrieved\nDocuments"];
+        Scored [label="Scored\nDocuments"];
+        Similarity [label="Similarity\nScoring", fillcolor=green, shape=doublecircle];
+        label="Query Time";
+        Query -> SearchAnalyzer;
+        Retrieved -> Similarity -> Scored;
+    }
+    SearchAnalyzer -> Storage -> Retrieved;
+}

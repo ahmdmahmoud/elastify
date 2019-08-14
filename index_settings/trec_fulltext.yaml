@@ -1,0 +1,110 @@
+settings:
+    index:
+        number_of_shards : 1
+        number_of_replicas : 0
+    analysis:
+        filter:
+            english_stop:
+                type: stop
+                stopwords: _english_
+            english_possessive_stemmer:
+                type: stemmer
+                language: possessive_english
+            english_kstem:
+                type: stemmer
+                language: light_english
+            glue_together:
+                type: shingle
+                min_shingle_size: 2
+                max_shingle_size: 6
+                output_unigrams: true
+            alt_labels:
+                type: synonym
+                expand: false
+                synonyms_path: analysis/altLabels.txt # relative to config dir
+            pref_labels:
+                type: keep
+                keep_words_path: analysis/prefLabels.txt # relative to config dir
+            prefLabels_to_descId:
+                type: synonym
+                expand: false
+                synonyms_path: analysis/prefLabel2descId.txt
+            spread2root:
+                type: synonym
+                expand: false
+                synonyms_path: analysis/spread2root.txt
+
+        analyzer:
+            TermAnalyzer:
+                type: custom
+                tokenizer : standard
+                filter: [english_possessive_stemmer,
+                    lowercase,
+                    english_stop,
+                    # english_keywords,
+                    english_kstem]
+
+            ConceptAnalyzer:
+                type: custom
+                tokenizer: standard
+                filter: [english_possessive_stemmer,
+                    lowercase,
+                    english_stop,
+                    english_kstem,
+                    glue_together,
+                    alt_labels, # resolve altlabel synsets
+                    pref_labels] # keep only preflabels
+
+            SpreadingActivationAnalyzer:
+                type: custom
+                tokenizer: standard
+                filter: [english_possessive_stemmer,
+                    lowercase,
+                    english_stop,
+                    english_kstem,
+                    glue_together,
+                    alt_labels, # resolve altlabel synsets
+                    pref_labels,
+                    prefLabels_to_descId,
+                    spread2root] # keep only preflabels
+
+            ThesaurusPreprocessor:
+                # same as ConceptAnalyzer up to glueing
+                type: custom
+                tokenizer: standard
+                filter: [english_possessive_stemmer,
+                    lowercase,
+                    english_stop,
+                    english_kstem]
+
+mappings:
+    publication: # doc type
+        properties:
+            fulltext:
+                type: string
+                analyzer: default
+                fields:
+                    TFIDF:
+                        type: string
+                        analyzer: TermAnalyzer
+                        similarity: default # TFIDF
+                    BM25:
+                        type: string
+                        analyzer: TermAnalyzer
+                        similarity: BM25
+                    CFIDF:
+                        type: string
+                        analyzer: ConceptAnalyzer
+                        similarity: default # TFIDF
+                    BM25C:
+                        type: string
+                        analyzer: ConceptAnalyzer
+                        similarity: BM25
+                    HFIDF:
+                        type: string
+                        analyzer: SpreadingActivationAnalyzer
+                        similarity: semanticsimilarity
+                    HFBM25:
+                        type: string
+                        analyzer: SpreadingActivationAnalyzer
+                        similarity: semanticsimilarity

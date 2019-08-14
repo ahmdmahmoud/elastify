@@ -1,0 +1,8 @@
+*.swp
+*~
+EVE/
+*.pyc
+/dist/
+/*.egg-info
+/*.egg
+build/

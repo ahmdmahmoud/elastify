@@ -1,0 +1,12 @@
+digraph elastic {
+    node [shape=rect];
+    Economics;
+    PolSci [label="Political Sciences"];
+    TREC;
+    Economics, PolSci, TREC -> Publication [label="doctype"];
+    Publication -> Title, Fulltext [label="property"];
+    TitleFields [label="TFIDF | TFBM25 | CFIDF | CFBM25 | HCFIDF", shape=record];
+    FulltextFields [label="TFIDF | TFBM25 | CFIDF | CFBM25 | HCFIDF", shape=record];
+    Title -> TitleFields [label="fields"];
+    Fulltext -> FulltextFields [label="fields"];
+}

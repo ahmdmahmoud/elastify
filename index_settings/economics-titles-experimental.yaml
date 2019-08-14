@@ -1,0 +1,150 @@
+settings:
+    index:
+        number_of_shards : 1
+        number_of_replicas : 0
+    analysis:
+        filter:
+            english_stop:
+                type: stop
+                stopwords: _english_
+
+            english_possessive_stemmer:
+                type: stemmer
+                language: possessive_english
+
+            english_kstem:
+                type: stemmer
+                language: light_english
+
+            english_porter:
+                type: stemmer
+                language: english
+
+            glue_together:
+                type: shingle
+                min_shingle_size: 2
+                max_shingle_size: 6
+                output_unigrams: true
+
+            alt_labels_nostem:
+                type: synonym
+                expand: false
+                synonyms_path: analysis/altLabels-nostem.txt
+
+            pref_labels_nostem:
+                type: keep
+                keep_words_path: analysis/prefLabels-nostem.txt # relative to config dir
+
+            alt_labels_porter:
+                type: synonym
+                expand: false
+                synonyms_path: analysis/altLabels-porter.txt
+
+            pref_labels_porter:
+                 type: keep
+                 keep_words_path: analysis/prefLabels-porter.txt # relative to config dir
+
+            alt_labels:
+                type: synonym
+                expand: false
+                synonyms_path: analysis/altLabels.txt # relative to config dir
+
+            alt_labels_expander:
+                type: synonym
+                expand: true
+                synonyms_path: analysis/altLabels.txt # relative to config dir
+
+            pref_labels:
+                type: keep
+                keep_words_path: analysis/prefLabels.txt # relative to config dir
+
+        analyzer:
+            TermAnalyzer:
+                type: custom
+                tokenizer : standard
+                filter: [english_possessive_stemmer,
+                    lowercase,
+                    english_stop,
+                    # english_keywords,
+                    english_kstem]
+
+            ConceptAnalyzerNostem:
+                # Do terms and concepts in one run
+                type: custom
+                tokenizer: standard
+                filter: [english_possessive_stemmer,
+                    lowercase,
+                    english_stop,
+                    glue_together, # do not forget this ever!
+                    alt_labels_nostem,
+                    pref_labels_nostem]
+
+            ConceptAnalyzerPorter:
+                # Do terms and concepts in one run
+                type: custom
+                tokenizer: standard
+                filter: [english_possessive_stemmer,
+                    lowercase,
+                    english_stop,
+                    english_porter,
+                    glue_together,
+                    alt_labels_porter,
+                    pref_labels_porter]
+
+            ConceptExpandAnalyzer:
+                # Do terms and concepts in one run
+                type: custom
+                tokenizer: standard
+                filter: [english_possessive_stemmer,
+                    lowercase,
+                    english_stop,
+                    english_kstem,
+                    glue_together,
+                    alt_labels_expander]
+
+mappings:
+    publication:
+        properties:
+            title:
+                type: string
+                analyzer: default
+                fields:
+                    TFIDF:
+                        type: string
+                        analyzer: TermAnalyzer
+                        similarity: default
+                    BM25:
+                        type: string
+                        analyzer: TermAnalyzer
+                        similarity: BM25
+
+                    CXFIDF:
+                        type: string
+                        analyzer: ConceptExpandAnalyzer
+                        similarity: default
+
+                    BM25CX:
+                        type: string
+                        analyzer: ConceptExpandAnalyzer
+                        similarity: BM25
+
+                    TFIDF_nostem:
+                       type: string
+                       analyzer: ConceptAnalyzerNostem
+                       similarity: default
+
+                    TFIDF_porter:
+                       type: string
+                       analyzer: ConceptAnalyzerPorter
+                       similarity: default
+
+                    CFIDF_nostem:
+                       type: string
+                       analyzer: ConceptAnalyzerNostem
+                       similarity: default
+
+                    CFIDF_porter:
+                       type: string
+                       analyzer: ConceptAnalyzerPorter
+                       similarity: default
+

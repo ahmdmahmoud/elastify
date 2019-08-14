@@ -1,0 +1,27 @@
+digraph G {
+    rankdir=TB;
+    {rank=same;
+        data [label="Input", shape=note];
+        thesaurus [label="Thesaurus", shape=trapezium];
+    }
+    subgraph cluster_ConceptAnalyzer {
+        tokenizer [label="Standard Tokenizer", shape=rect];
+        possessive [label="Possessive English"];
+        lowercase [label="Lowercase"];
+        stopwords [label="Stopword removal"]
+        stemmer [label="Stemmer (KStem)"];
+        ngrams [label="Shingle Token Filter (1,6)"];
+        synonym [label="Synonym Token Filter"];
+        keepwords [label="Keep Words Token Filter"];
+        data -> tokenizer -> possessive -> lowercase -> stopwords -> stemmer -> ngrams -> synonym -> keepwords;
+    }
+
+    synfile [label="AltLabels -> PrefLabel", shape=note];
+    preflabels [label="PrefLabels", shape=note];
+    concepts [label="Output (Concepts)", shape=note]; 
+    keepwords -> concepts
+
+    thesaurus -> synfile, preflabels;
+    synfile -> synonym;
+    preflabels -> keepwords;
+}

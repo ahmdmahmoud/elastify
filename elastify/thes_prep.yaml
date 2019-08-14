@@ -1,0 +1,46 @@
+settings:
+    index:
+        number_of_shards : 3
+        number_of_replicas : 0
+    analysis:
+        filter:
+            english_stop:
+                type: stop
+                stopwords: _english_
+            english_possessive_stemmer:
+                type: stemmer
+                language: possessive_english
+            english_kstem:
+                type: stemmer
+                language: light_english
+            english_porter:
+                type: stemmer
+                langauge: english
+
+        analyzer:
+            ThesaurusPreprocessor:
+                # same as ConceptAnalyzer up to glueing
+                type: custom
+                tokenizer: standard
+                filter: [english_possessive_stemmer,
+                    lowercase,
+                    english_stop,
+                    english_kstem]
+
+            PorterStemming:
+                type: custom
+                tokenizer: standard
+                filter: [english_possessive_stemmer,
+                    lowercase,
+                    english_stop,
+                    english_porter]
+
+            NoStemming:
+                type: custom
+                tokenizer: standard
+                filter : [english_possessive_stemmer,
+                    lowercase,
+                    english_stop]
+
+
+
